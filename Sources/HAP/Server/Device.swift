@@ -3,6 +3,10 @@ import Cryptor
 import Foundation
 import func Evergreen.getLogger
 
+#if os(Linux)
+    import Dispatch
+#endif
+
 fileprivate let logger = getLogger("hap.device")
 
 struct Box<T: Any>: Hashable, Equatable {
@@ -30,6 +34,16 @@ struct Box<T: Any>: Hashable, Equatable {
     }
 }
 
+public enum PairingEvent {
+    case pairingStarted
+    case pairingVerified
+    case pairingCompleted
+    case pairingFailed
+    case pairingTimeout
+    case unpairingCompleted
+}
+
+// swiftlint:disable:next type_body_length
 public class Device {
     public let name: String
     public let isBridge: Bool
@@ -41,6 +55,7 @@ public class Device {
     public private(set) var accessories: [Accessory]
 
     public var onIdentify: [(Accessory?) -> Void] = []
+    public var onPairingEvent: [(Device, PairingEvent) -> Void] = []
 
     let storage: Storage
 
@@ -244,9 +259,16 @@ public class Device {
         notifyConfigurationChange()
     }
 
-    // Notify listeners that the config record has changed
+    // Notify the server that the config record has changed
     func notifyConfigurationChange() {
         server?.updateDiscoveryRecord()
+    }
+
+    // Notify listeners about a pairing event
+    func notifyPairingEvent(_ event: PairingEvent) {
+        DispatchQueue.main.async { [weak self] in
+            _ = self?.onPairingEvent.map { $0(self!, event) }
+        }
     }
 
     public func removeAccessories(_ unwantedAccessories: [Accessory]) {
@@ -314,6 +336,7 @@ public class Device {
         if configuration.pairings.values.first(where: { $0.role == .admin }) == nil {
             logger.info("Last remaining admin controller pairing is removed, removing all pairings")
             configuration.pairings = [:]
+            notifyPairingEvent(.unpairingCompleted)
         }
         persistConfig()
         if wasPaired && !isPaired {
