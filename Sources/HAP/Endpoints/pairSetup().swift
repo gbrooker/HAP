@@ -47,6 +47,7 @@ func pairSetup(device: Device) -> Application {
         do {
             switch sequence {
             case .startRequest:
+                _ = device.onPairingEvent.map { $0(device, .pairingStarted) }
                 let session = createSession()
                 response = try controller.startRequest(data, session)
                 connection.context[SESSION_KEY] = session
@@ -56,6 +57,7 @@ func pairSetup(device: Device) -> Application {
             case .keyExchangeRequest:
                 let session = try getSession(connection)
                 response = try controller.keyExchangeRequest(data, session)
+                _ = device.onPairingEvent.map { $0(device, .pairingCompleted) }
             default:
                 response = nil
             }
@@ -68,6 +70,7 @@ func pairSetup(device: Device) -> Application {
             return Response(status: .ok, data: encode(response), mimeType: "application/pairing+tlv8")
         } else {
             // TODO: return error code -- otherwise setup will hang in iOS (spinner)
+            _ = device.onPairingEvent.map { $0(device, .pairingFailed) }
             return .badRequest
         }
     }

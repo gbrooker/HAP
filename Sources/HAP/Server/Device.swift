@@ -30,6 +30,13 @@ struct Box<T: Any>: Hashable, Equatable {
     }
 }
 
+public enum PairingEvent {
+    case pairingStarted
+    case pairingCompleted
+    case pairingFailed
+    case unpairingCompleted
+}
+
 public class Device {
     public let name: String
     public let isBridge: Bool
@@ -41,6 +48,7 @@ public class Device {
     public private(set) var accessories: [Accessory]
 
     public var onIdentify: [(Accessory?) -> Void] = []
+    public var onPairingEvent: [(Device, PairingEvent) -> Void] = []
 
     let storage: Storage
 
