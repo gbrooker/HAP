@@ -39,6 +39,7 @@ public enum PairingEvent {
     case unpairingCompleted
 }
 
+// swiftlint:disable:next type_body_length
 public class Device {
     public let name: String
     public let isBridge: Bool
@@ -259,14 +260,12 @@ public class Device {
         server?.updateDiscoveryRecord()
     }
 
-
     // Notify listeners about a pairing event
     func notifyPairingEvent(_ event: PairingEvent) {
         DispatchQueue.main.async { [weak self] in
             _ = self?.onPairingEvent.map { $0(self!, event) }
         }
     }
-
 
     public func removeAccessories(_ unwantedAccessories: [Accessory]) {
         if unwantedAccessories.isEmpty {

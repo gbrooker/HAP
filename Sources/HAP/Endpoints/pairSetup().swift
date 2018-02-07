@@ -19,7 +19,7 @@ func pairSetup(device: Device) -> Application {
     var timeOut = true
 
     func notifyPairingEvent(_ event: PairingEvent) {
-        switch(event) {
+        switch event {
         case .pairingStarted:
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(20)) {
                 if timeOut {
