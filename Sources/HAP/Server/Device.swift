@@ -32,8 +32,10 @@ struct Box<T: Any>: Hashable, Equatable {
 
 public enum PairingEvent {
     case pairingStarted
+    case pairingVerified
     case pairingCompleted
     case pairingFailed
+    case pairingTimeout
     case unpairingCompleted
 }
 
@@ -252,10 +254,19 @@ public class Device {
         notifyConfigurationChange()
     }
 
-    // Notify listeners that the config record has changed
+    // Notify the server that the config record has changed
     func notifyConfigurationChange() {
         server?.updateDiscoveryRecord()
     }
+
+
+    // Notify listeners about a pairing event
+    func notifyPairingEvent(_ event: PairingEvent) {
+        DispatchQueue.main.async { [weak self] in
+            _ = self?.onPairingEvent.map { $0(self!, event) }
+        }
+    }
+
 
     public func removeAccessories(_ unwantedAccessories: [Accessory]) {
         if unwantedAccessories.isEmpty {
@@ -322,6 +333,7 @@ public class Device {
         if configuration.pairings.values.first(where: { $0.role == .admin }) == nil {
             logger.info("Last remaining admin controller pairing is removed, removing all pairings")
             configuration.pairings = [:]
+            notifyPairingEvent(.unpairingCompleted)
         }
         persistConfig()
         if wasPaired && !isPaired {

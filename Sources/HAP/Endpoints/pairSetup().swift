@@ -15,6 +15,27 @@ func pairSetup(device: Device) -> Application {
     let algorithm = Digest.Algorithm.sha512
 
     let username = "Pair-Setup"
+
+    var timeOut = true
+
+    func notifyPairingEvent(_ event: PairingEvent) {
+        switch(event) {
+        case .pairingStarted:
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(20)) {
+                if timeOut {
+                    timeOut = false
+                    notifyPairingEvent(.pairingTimeout)
+                }
+            }
+            timeOut = true
+        case .pairingCompleted, .pairingFailed:
+            timeOut = false
+        default:
+            break
+        }
+        device.notifyPairingEvent(event)
+    }
+
     let (salt, verificationKey) = createSaltedVerificationKey(username: username,
                                                               password: device.setupCode,
                                                               group: group,
@@ -47,17 +68,22 @@ func pairSetup(device: Device) -> Application {
         do {
             switch sequence {
             case .startRequest:
-                _ = device.onPairingEvent.map { $0(device, .pairingStarted) }
+                notifyPairingEvent(.pairingStarted)
                 let session = createSession()
                 response = try controller.startRequest(data, session)
                 connection.context[SESSION_KEY] = session
             case .verifyRequest:
                 let session = try getSession(connection)
                 response = controller.verifyRequest(data, session)
+                if let r = response, r[.error] != nil {
+                    notifyPairingEvent(.pairingFailed)
+                } else {
+                    notifyPairingEvent(.pairingVerified)
+                }
             case .keyExchangeRequest:
                 let session = try getSession(connection)
                 response = try controller.keyExchangeRequest(data, session)
-                _ = device.onPairingEvent.map { $0(device, .pairingCompleted) }
+                notifyPairingEvent(.pairingCompleted)
             default:
                 response = nil
             }
@@ -70,7 +96,7 @@ func pairSetup(device: Device) -> Application {
             return Response(status: .ok, data: encode(response), mimeType: "application/pairing+tlv8")
         } else {
             // TODO: return error code -- otherwise setup will hang in iOS (spinner)
-            _ = device.onPairingEvent.map { $0(device, .pairingFailed) }
+            notifyPairingEvent(.pairingFailed)
             return .badRequest
         }
     }

@@ -42,9 +42,6 @@ func pairings(device: Device) -> Application {
         case .removePairing:
             device.remove(pairingWithIdentifier: username)
             logger.info("Removed pairing for \(String(data: username, encoding: .utf8)!)")
-            if device.configuration.pairings.isEmpty {
-                _ = device.onPairingEvent.map { $0(device, .unpairingCompleted) }
-            }
         case .listPairings:
             // TODO: implement
             logger.warning("Received List Pairings command, but that's not implemented")
