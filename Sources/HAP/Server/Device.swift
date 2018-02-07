@@ -3,6 +3,10 @@ import Cryptor
 import Foundation
 import func Evergreen.getLogger
 
+#if os(Linux)
+    import Dispatch
+#endif
+
 fileprivate let logger = getLogger("hap.device")
 
 struct Box<T: Any>: Hashable, Equatable {
