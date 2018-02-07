@@ -3,6 +3,10 @@ import func Evergreen.getLogger
 import Foundation
 import SRP
 
+#if os(Linux)
+    import Dispatch
+#endif
+
 fileprivate let logger = getLogger("hap.pairSetup")
 fileprivate typealias Session = PairSetupController.Session
 fileprivate let SESSION_KEY = "hap.pair-setup.session"
