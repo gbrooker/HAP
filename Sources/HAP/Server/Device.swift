@@ -45,7 +45,11 @@ public enum PairingEvent {
 
 // swiftlint:disable:next type_body_length
 public class Device {
-    public let name: String
+    internal(set) public var name: String {
+        didSet {
+            notifyConfigurationChange()
+        }
+    }
     public let isBridge: Bool
 
     public var setupCode: String {
@@ -57,9 +61,15 @@ public class Device {
     public var onIdentify: [(Accessory?) -> Void] = []
     public var onPairingEvent: [(Device, PairingEvent) -> Void] = []
 
+    let onNameCollision: ((Device) -> Void)?
+
     let storage: Storage
 
+    let autoRename: Bool
+
     weak var server: Server?
+
+    private(set) var lastPairingEvent = PairingEvent.unpairingCompleted
 
     private(set) var characteristicEventListeners: [Box<Characteristic>: WeakObjectSet<Server.Connection>]
     private(set) var configuration: Configuration
@@ -98,12 +108,14 @@ public class Device {
         bridgeInfo: Service.Info,
         setupCode: SetupCode = .random,
         storage: Storage,
-        accessories: [Accessory]) {
+        accessories: [Accessory],
+        onNameCollision: ((Device) -> Void)? = nil) {
         let bridge = Accessory(info: bridgeInfo, type: .bridge, services: [])
         self.init(name: bridge.info.name.value!,
                   setupCode: setupCode,
                   storage: storage,
-                  accessories: [bridge] + accessories)
+                  accessories: [bridge] + accessories,
+                  onNameCollision: onNameCollision)
     }
 
     /// An HAP accessory object represents a physical accessory on an HAP
@@ -120,22 +132,34 @@ public class Device {
     convenience public init(
         setupCode: SetupCode = .random,
         storage: Storage,
-        accessory: Accessory) {
+        accessory: Accessory,
+        onNameCollision: ((Device) -> Void)? = nil) {
         self.init(name: accessory.info.name.value!,
                   setupCode: setupCode,
                   storage: storage,
-                  accessories: [accessory])
+                  accessories: [accessory],
+                  onNameCollision: onNameCollision)
     }
 
     fileprivate init(
         name: String,
         setupCode: SetupCode = .random,
         storage: Storage,
-        accessories: [Accessory]) {
+        accessories: [Accessory],
+        onNameCollision: ((Device) -> Void)? = nil) {
 
         precondition(setupCode.isValid, "setup code must conform to the format XXX-XX-XXX")
         self.name = name
         self.storage = storage
+
+        if let collisionFunc = onNameCollision {
+            self.onNameCollision = collisionFunc
+            self.autoRename = false
+        } else {
+            self.autoRename = true
+            self.onNameCollision = nil
+        }
+
         isBridge = accessories[0].type == .bridge
 
         do {
@@ -266,6 +290,7 @@ public class Device {
 
     // Notify listeners about a pairing event
     func notifyPairingEvent(_ event: PairingEvent) {
+        lastPairingEvent = event
         DispatchQueue.main.async { [weak self] in
             _ = self?.onPairingEvent.map { $0(self!, event) }
         }

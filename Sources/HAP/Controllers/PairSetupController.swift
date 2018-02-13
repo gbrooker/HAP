@@ -3,6 +3,10 @@ import Foundation
 import HKDF
 import SRP
 
+#if os(Linux)
+    import Dispatch
+#endif
+
 fileprivate let logger = getLogger("hap.controllers.pair-setup")
 
 class PairSetupController {
@@ -23,6 +27,26 @@ class PairSetupController {
         self.device = device
     }
 
+    var timeOut = true
+
+    func notifyPairingEvent(_ event: PairingEvent) {
+        switch event {
+        case .pairingStarted:
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(20)) { [weak self] in
+                if let this = self, this.timeOut {
+                    this.timeOut = false
+                    this.notifyPairingEvent(.pairingTimeout)
+                }
+            }
+            timeOut = true
+        case .pairingCompleted, .pairingFailed:
+            timeOut = false
+        default:
+            break
+        }
+        device.notifyPairingEvent(event)
+    }
+
     func startRequest(_ data: PairTagTLV8, _ session: Session) throws -> PairTagTLV8 {
         guard let method = data[.pairingMethod]?.first.flatMap({ PairingMethod(rawValue: $0) }) else {
             throw Error.invalidParameters
@@ -31,6 +55,35 @@ class PairSetupController {
         guard method == .default else {
             throw Error.invalidPairingMethod
         }
+
+        // If the accessory is already paired it must respond with
+        // Error_Unavailable
+        if device.isPaired {
+            return [
+                .state: Data(bytes: [PairSetupStep.startResponse.rawValue]),
+                .error: Data(bytes: [PairError.unavailable.rawValue])
+            ]
+        }
+
+        // If the accessory has received more than 100 unsuccessful
+        // authentication attempts it must respond with
+        // Error_MaxTries
+        // TODO
+
+        // If the accessory is currently performing a Pair Setup operation with
+        // a different controller it must respond with
+        // Error_Busy
+        if device.lastPairingEvent == .pairingStarted ||
+            device.lastPairingEvent == .pairingVerified {
+            return [
+                .state: Data(bytes: [PairSetupStep.startResponse.rawValue]),
+                .error: Data(bytes: [PairError.busy.rawValue])
+            ]
+        }
+
+        // Notify listeners of the pairing event and record the paring state
+        notifyPairingEvent(.pairingStarted)
+
 
         let (salt, serverPublicKey) = session.server.getChallenge()
 
@@ -49,7 +102,12 @@ class PairSetupController {
     func verifyRequest(_ data: PairTagTLV8, _ session: Session) -> PairTagTLV8? {
         guard let clientPublicKey = data[.publicKey], let clientKeyProof = data[.proof] else {
             logger.warning("Invalid parameters")
-            return nil
+            notifyPairingEvent(.pairingFailed)
+            let result: PairTagTLV8 = [
+                .state: Data(bytes: [PairSetupStep.verifyResponse.rawValue]),
+                .error: Data(bytes: [PairError.unknown.rawValue])
+            ]
+            return result
         }
 
         logger.debug("--> A \(clientPublicKey.hex)")
@@ -59,6 +117,7 @@ class PairSetupController {
                                                                      keyProof: clientKeyProof)
             else {
                 logger.warning("Invalid PIN")
+                notifyPairingEvent(.pairingFailed)
                 let result: PairTagTLV8 = [
                     .state: Data(bytes: [PairSetupStep.verifyResponse.rawValue]),
                     .error: Data(bytes: [PairError.authenticationFailed.rawValue])
@@ -68,6 +127,7 @@ class PairSetupController {
 
         logger.debug("<-- HAMK \(serverKeyProof.hex)")
 
+        notifyPairingEvent(.pairingVerified)
         let result: PairTagTLV8 = [
             .state: Data(bytes: [PairSetupStep.verifyResponse.rawValue]),
             .proof: serverKeyProof
@@ -88,11 +148,14 @@ class PairSetupController {
 
         guard let plaintext = try? ChaCha20Poly1305.decrypt(cipher: encryptedData,
                                                             nonce: "PS-Msg05".data(using: .utf8)!,
-                                                            key: encryptionKey) else {
-                                                                throw Error.couldNotDecryptMessage
+                                                            key: encryptionKey)
+            else {
+            notifyPairingEvent(.pairingFailed)
+            throw Error.couldNotDecryptMessage
         }
 
         guard let data: PairTagTLV8 = try? decode(plaintext) else {
+            notifyPairingEvent(.pairingFailed)
             throw Error.couldNotDecodeMessage
         }
 
@@ -100,6 +163,7 @@ class PairSetupController {
             let username = data[.identifier],
             let signatureIn = data[.signature]
             else {
+                notifyPairingEvent(.pairingFailed)
                 throw Error.invalidParameters
         }
 
@@ -115,7 +179,12 @@ class PairSetupController {
                      username +
                      publicKey
 
-        try Ed25519.verify(publicKey: publicKey, message: hashIn, signature: signatureIn)
+        do {
+            try Ed25519.verify(publicKey: publicKey, message: hashIn, signature: signatureIn)
+        } catch  {
+            notifyPairingEvent(.pairingFailed)
+            throw error
+        }
 
         // At this point, the pairing has completed. The first controller is granted admin role.
         device.add(pairing: Pairing(identifier: username, publicKey: publicKey, role: .admin))
@@ -129,6 +198,7 @@ class PairSetupController {
             device.publicKey
 
         guard let signatureOut = try? Ed25519.sign(privateKey: device.privateKey, message: hashOut) else {
+            notifyPairingEvent(.pairingFailed)
             throw Error.couldNotSign
         }
 
@@ -146,14 +216,26 @@ class PairSetupController {
         guard let encryptedResultInner = try? ChaCha20Poly1305.encrypt(message: encode(resultInner),
                                                                        nonce: "PS-Msg06".data(using: .utf8)!,
                                                                        key: encryptionKey)
-            else {
-                throw Error.couldNotEncrypt
+        else {
+            notifyPairingEvent(.pairingFailed)
+            throw Error.couldNotEncrypt
         }
+
+        notifyPairingEvent(.pairingCompleted)
 
         let resultOuter: PairTagTLV8 = [
             .state: Data(bytes: [PairSetupStep.keyExchangeResponse.rawValue]),
             .encryptedData: encryptedResultInner
         ]
         return resultOuter
+    }
+
+    func unknownRequest(_ data: PairTagTLV8) throws -> PairTagTLV8 {
+        notifyPairingEvent(.pairingFailed)
+        let result: PairTagTLV8 = [
+            .state: Data(bytes: [PairSetupStep.waiting.rawValue]),
+            .error: Data(bytes: [PairError.unknown.rawValue])
+        ]
+        return result
     }
 }

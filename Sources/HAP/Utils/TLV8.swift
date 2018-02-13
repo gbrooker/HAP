@@ -56,26 +56,48 @@ func encode<Key>(_ data: [Key: Data]) -> Data where Key: RawRepresentable, Key.R
     return result
 }
 
+// Pair Setup State
 enum PairSetupStep: UInt8 {
     case waiting = 0
+
+    // M1: iOS Device -> Accessory -- `SRP Start Request'
     case startRequest = 1
+
+    // M2: Accessory -> iOS Device -- `SRP Start Response'
     case startResponse = 2
+
+    // M3: iOS Device -> Accessory -- `SRP Verify Request'
     case verifyRequest = 3
+
+    // M4: Accessory -> iOS Device -- `SRP Verify Response'
     case verifyResponse = 4
+
+    // M5: iOS Device -> Accessory -- `Exchange Request'
     case keyExchangeRequest = 5
+
+    // M6: Accessory -> iOS Device -- `Exchange Response'
     case keyExchangeResponse = 6
 }
 
+// Pair Verification State
 enum PairVerifyStep: UInt8 {
     case waiting = 0
+
+    // M1: iOS Device -> Accessory -- `Verify Start Request'
     case startRequest = 1
+
+    // M2: Accessory -> iOS Device -- `Verify Start Response'
     case startResponse = 2
+
+    // M3: iOS Device -> Accessory -- `Verify Finish Request'
     case finishRequest = 3
+
+    // M4: Accessory -> iOS Device -- `Verify Finish Response'
     case finishResponse = 4
 }
 
 enum PairTag: UInt8 {
-    // Method to use for pairing. See Table 4-4 (page 60).
+    // TLV Types. See Table 4-6 (page 61).
     case pairingMethod = 0x00
 
     // Identifier for authentication. (UTF-8)
@@ -125,6 +147,7 @@ enum PairTag: UInt8 {
 }
 
 enum PairingMethod: UInt8 {
+    // Method to use for pairing. See Table 4-4 (page 60).
     case `default` = 0 // TODO: according to specs, 0 is 'reserved'
     case pairSetup = 1
     case pairVerify = 2
@@ -138,6 +161,7 @@ enum PairStep: UInt8 {
     case response = 0x02
 }
 
+// Error Codes. See Table 4-5 (page 01).
 enum PairError: UInt8 {
     // Generic error to handle unexpected errors.
     case unknown = 0x01
