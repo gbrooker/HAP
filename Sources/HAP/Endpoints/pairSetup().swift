@@ -72,7 +72,8 @@ func pairSetup(device: Device) -> Application {
             let status: Response.Status
             if let errorData = response[.error] {
                 status = .badRequest
-                logger.warning("Pair Setup error:\(String(describing:errorData.first.flatMap({ PairError(rawValue: $0) })))")
+                logger.warning(
+                    "Pair Setup error:\(String(describing: errorData.first.flatMap({ PairError(rawValue: $0) })))")
                 connection.context[SESSION_KEY] = nil
             } else {
                 status = .ok

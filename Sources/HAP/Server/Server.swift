@@ -56,7 +56,7 @@ public class Server: NSObject, NetServiceDelegate {
         continueRunning = true
 
         if device.autoRename {
-            service.publish(options: NetService.Options(rawValue:0))
+            service.publish(options: NetService.Options(rawValue: 0))
         } else {
             service.publish(options: .noAutoRename)
         }

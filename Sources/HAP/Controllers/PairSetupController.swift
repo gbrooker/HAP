@@ -84,7 +84,6 @@ class PairSetupController {
         // Notify listeners of the pairing event and record the paring state
         notifyPairingEvent(.pairingStarted)
 
-
         let (salt, serverPublicKey) = session.server.getChallenge()
 
         logger.info("Pair setup started")
@@ -181,7 +180,7 @@ class PairSetupController {
 
         do {
             try Ed25519.verify(publicKey: publicKey, message: hashIn, signature: signatureIn)
-        } catch  {
+        } catch {
             notifyPairingEvent(.pairingFailed)
             throw error
         }
