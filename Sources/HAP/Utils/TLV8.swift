@@ -1,6 +1,7 @@
 import Foundation
 
 typealias PairTagTLV8 = [PairTag: Data]
+typealias PairTagTLV8Array = [(PairTag, Data)]
 
 enum TLV8Error: Swift.Error {
     case unknownKey(UInt8)
@@ -42,6 +43,27 @@ func encode<Key>(_ data: [Key: Data]) -> Data where Key: RawRepresentable, Key.R
     }
 
     for (type, value) in data {
+        var index = value.startIndex
+        repeat {
+            if let endIndex = value.index(index, offsetBy: 255, limitedBy: value.endIndex) {
+                append(type: type.rawValue, value: value[index..<endIndex])
+                index = endIndex
+            } else {
+                append(type: type.rawValue, value: value[index..<value.endIndex])
+                index = value.endIndex
+            }
+        } while index < value.endIndex
+    }
+    return result
+}
+
+func encode<Key>(_ array: [(Key, Data)]) -> Data where Key: RawRepresentable, Key.RawValue == UInt8 {
+    var result = Data()
+    func append(type: UInt8, value: Data.SubSequence) {
+        result.append(Data(bytes: [type, UInt8(value.count)] + value))
+    }
+
+    for (type, value) in array {
         var index = value.startIndex
         repeat {
             if let endIndex = value.index(index, offsetBy: 255, limitedBy: value.endIndex) {

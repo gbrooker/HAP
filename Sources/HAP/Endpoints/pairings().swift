@@ -43,9 +43,21 @@ func pairings(device: Device) -> Application {
             device.remove(pairingWithIdentifier: username)
             logger.info("Removed pairing for \(String(data: username, encoding: .utf8)!)")
         case .listPairings:
-            // TODO: implement
-            logger.warning("Received List Pairings command, but that's not implemented")
-            return .badRequest
+            var pairings = device.configuration.pairings.makeIterator()
+            let firstPairing = pairings.next()!.value
+            var results: PairTagTLV8Array = [
+                (.state, Data(bytes: [PairStep.response.rawValue])),
+                (.identifier, firstPairing.identifier),
+                (.publicKey, firstPairing.publicKey),
+                (.permissions, Data(bytes: [firstPairing.role.rawValue]))
+            ]
+            while let p = pairings.next()?.value {
+                results.append((.separator, Data()))
+                results.append((.identifier, p.identifier))
+                results.append((.publicKey, p.publicKey))
+                results.append((.permissions, Data(bytes: [p.role.rawValue])))
+            }
+            return Response(status: .ok, data: encode(results), mimeType: "application/pairing+tlv8")
         default:
             logger.info("Unhandled PairingMethod request: \(method)")
             return .badRequest

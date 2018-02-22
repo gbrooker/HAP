@@ -127,6 +127,7 @@ public class Server: NSObject, NetServiceDelegate {
         if device.autoRename {
             if sender.name != device.name {
                 device.name = sender.name
+                device.accessories[0].info.name.value = sender.name
                 logger.info("Renamed device to \(sender.name)")
             }
         }
