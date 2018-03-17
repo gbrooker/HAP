@@ -105,7 +105,6 @@ public class Server: NSObject, NetServiceDelegate {
         }
     }
 
-
     public func netServiceDidPublish(_ sender: NetService) {
         // If NetService has renamed the record due to a name collision
         // then update the device and its info service. A host app can
