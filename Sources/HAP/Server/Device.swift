@@ -61,11 +61,7 @@ public class Device {
     public var onIdentify: [(Accessory?) -> Void] = []
     public var onPairingEvent: [(Device, PairingEvent) -> Void] = []
 
-    let onNameCollision: ((Device) -> Void)?
-
     let storage: Storage
-
-    let autoRename: Bool
 
     weak var server: Server?
 
@@ -108,14 +104,12 @@ public class Device {
         bridgeInfo: Service.Info,
         setupCode: SetupCode = .random,
         storage: Storage,
-        accessories: [Accessory],
-        onNameCollision: ((Device) -> Void)? = nil) {
+        accessories: [Accessory]) {
         let bridge = Accessory(info: bridgeInfo, type: .bridge, services: [])
         self.init(name: bridge.info.name.value!,
                   setupCode: setupCode,
                   storage: storage,
-                  accessories: [bridge] + accessories,
-                  onNameCollision: onNameCollision)
+                  accessories: [bridge] + accessories)
     }
 
     /// An HAP accessory object represents a physical accessory on an HAP
@@ -132,34 +126,22 @@ public class Device {
     convenience public init(
         setupCode: SetupCode = .random,
         storage: Storage,
-        accessory: Accessory,
-        onNameCollision: ((Device) -> Void)? = nil) {
+        accessory: Accessory) {
         self.init(name: accessory.info.name.value!,
                   setupCode: setupCode,
                   storage: storage,
-                  accessories: [accessory],
-                  onNameCollision: onNameCollision)
+                  accessories: [accessory])
     }
 
     fileprivate init(
         name: String,
         setupCode: SetupCode = .random,
         storage: Storage,
-        accessories: [Accessory],
-        onNameCollision: ((Device) -> Void)? = nil) {
+        accessories: [Accessory]) {
 
         precondition(setupCode.isValid, "setup code must conform to the format XXX-XX-XXX")
         self.name = name
         self.storage = storage
-
-        if let collisionFunc = onNameCollision {
-            self.onNameCollision = collisionFunc
-            self.autoRename = false
-        } else {
-            self.autoRename = true
-            self.onNameCollision = nil
-        }
-
         isBridge = accessories[0].type == .bridge
 
         do {

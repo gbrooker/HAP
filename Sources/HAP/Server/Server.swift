@@ -54,12 +54,7 @@ public class Server: NSObject, NetServiceDelegate {
         // TODO: make sure can only be started if not started
 
         continueRunning = true
-
-        if device.autoRename {
-            service.publish(options: NetService.Options(rawValue: 0))
-        } else {
-            service.publish(options: .noAutoRename)
-        }
+        service.publish(options: NetService.Options(rawValue: 0))
         logger.info("Listening on port \(self.listenSocket.listeningPort)")
 
         let queue = DispatchQueue.global(qos: .userInteractive)
@@ -110,33 +105,28 @@ public class Server: NSObject, NetServiceDelegate {
         }
     }
 
+
+    public func netServiceDidPublish(_ sender: NetService) {
+        // If NetService has renamed the record due to a name collision
+        // then update the device and its info service. A host app can
+        // watch for changes to the name property on that service
+        // if it needs to catch a name collision
+
+        if sender.name != device.name {
+            device.name = sender.name
+            device.accessories[0].info.name.value = sender.name
+            logger.info("Renamed device to \(sender.name)")
+        }
+    }
+
     #if os(macOS)
         // MARK: Using Network Services
         public func netService(_ sender: NetService, didNotPublish errorDict: [String: NSNumber]) {
             logger.error("didNotPublish: \(errorDict)")
-            device.onNameCollision?(device)
         }
-
-    public func netServiceWillPublish(_ sender: NetService) {
-        if device.autoRename {
-            print(sender)
-        }
-    }
-
-    public func netServiceDidPublish(_ sender: NetService) {
-        if device.autoRename {
-            if sender.name != device.name {
-                device.name = sender.name
-                device.accessories[0].info.name.value = sender.name
-                logger.info("Renamed device to \(sender.name)")
-            }
-        }
-    }
     #elseif os(Linux)
         // MARK: Using Network Services
         public func netServiceWillPublish(_ sender: NetService) { }
-
-        public func netServiceDidPublish(_ sender: NetService) { }
 
         public func netService(_ sender: NetService,
                                didNotPublish error: Swift.Error) {
