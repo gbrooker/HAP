@@ -14,12 +14,21 @@ class TLV8Tests: XCTestCase {
 
     func test() {
         let publicKey = Data(repeating: 0, count: 256) + Data(repeating: 1, count: 256) + Data(repeating: 2, count: 256)
-        let original: PairTagTLV8 = [
-            .publicKey: publicKey
+        let original: PairTagTLV8Array = [
+            (.publicKey, publicKey)
         ]
         let encoded = encode(original)
-        let decoded: PairTagTLV8 = try! decode(encoded)
-        XCTAssertEqual(original, decoded)
+        let decoded: PairTagTLV8Array = try! decode(encoded)
+
+        if original.count != decoded.count {
+            XCTFail("Original and Decoded PairTLV8 arrays are a different length")
+            return
+        }
+        for i in 0..<original.count {
+            if original[i] != decoded[i] {
+                XCTFail("Original and Decoded PairTLV8 arrays are not identical")
+            }
+        }
     }
 
     // from: https://oleb.net/blog/2017/03/keeping-xctest-in-sync/#appendix-code-generation-with-sourcery

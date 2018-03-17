@@ -34,11 +34,11 @@ class PairVerifyControllerTests: XCTestCase {
 
         do {
             // Client -> Server: public key
-            let request: PairTagTLV8 = [
-                PairTag.state: Data(bytes: [PairVerifyStep.startRequest.rawValue]),
-                PairTag.publicKey: clientPublicKey
+            let request: PairTagTLV8Array = [
+                (.state, Data(bytes: [PairVerifyStep.startRequest.rawValue])),
+                (.publicKey, clientPublicKey)
             ]
-            let resultOuter: PairTagTLV8
+            let resultOuter: PairTagTLV8Array
             do {
                 (resultOuter, session) = try controller.startRequest(request)
             } catch {
@@ -67,7 +67,7 @@ class PairVerifyControllerTests: XCTestCase {
                                                                 key: encryptionKey_) else {
                 return XCTFail("Couldn't decrypt response")
             }
-            guard let resultInner: PairTagTLV8 = try? decode(plainText),
+            guard let resultInner: PairTagTLV8Array = try? decode(plainText),
                 let username = resultInner[.identifier],
                 let signature = resultInner[.signature] else {
                 return XCTFail("Couldn't decode response")
@@ -89,17 +89,17 @@ class PairVerifyControllerTests: XCTestCase {
             guard let signature = try? Ed25519.sign(privateKey: keys.privateKey, message: material) else {
                 return XCTFail("Couldn't sign")
             }
-            let requestInner: PairTagTLV8 = [
-                .identifier: username,
-                .signature: signature
+            let requestInner: PairTagTLV8Array = [
+                (.identifier, username),
+                (.signature, signature)
             ]
             guard let cipher = try? ChaCha20Poly1305.encrypt(message: encode(requestInner),
                                                              nonce: "PV-Msg03".data(using: .utf8)!,
                                                              key: encryptionKey) else {
                 return XCTFail("Couldn't encode")
             }
-            let resultOuter: PairTagTLV8 = [
-                .encryptedData: cipher
+            let resultOuter: PairTagTLV8Array = [
+                (.encryptedData, cipher)
             ]
             do {
                 _ = try controller.finishRequest(resultOuter, session)

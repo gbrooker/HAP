@@ -36,7 +36,7 @@ class PairSetupControllerTests: XCTestCase {
         do {
             // Server -> Client: [salt, publicKey]
             let response = try! controller.startRequest([
-                .pairingMethod: Data(bytes: [PairingMethod.default.rawValue])
+                (.pairingMethod, Data(bytes: [PairingMethod.default.rawValue]))
             ], session)
             XCTAssertEqual(response[.state]?.first, PairSetupStep.startResponse.rawValue)
             XCTAssertEqual(response[.publicKey], session.server.publicKey)
@@ -46,7 +46,7 @@ class PairSetupControllerTests: XCTestCase {
 
         do {
             // Client -> Server: [publicKey, keyProof]
-            let response = controller.verifyRequest([.publicKey: client.publicKey, .proof: clientKeyProof], session)
+            let response = controller.verifyRequest([(.publicKey, client.publicKey), (.proof, clientKeyProof)], session)
             XCTAssertNotNil(response)
             XCTAssertEqual(response![.state]?.first, PairSetupStep.verifyResponse.rawValue)
 
@@ -64,20 +64,20 @@ class PairSetupControllerTests: XCTestCase {
                                    count: 32) +
                 clientIdentifier +
                 keys.publicKey
-            let request: PairTagTLV8 = [
-                .publicKey: keys.publicKey,
-                .identifier: clientIdentifier,
-                .signature: try! Ed25519.sign(privateKey: keys.privateKey, message: hashIn)
+            let request: PairTagTLV8Array = [
+                (.publicKey, keys.publicKey),
+                (.identifier, clientIdentifier),
+                (.signature, try! Ed25519.sign(privateKey: keys.privateKey, message: hashIn))
             ]
             let encryptionKey = deriveKey(algorithm: .sha512,
                                           seed: session.server.sessionKey!,
                                           info: "Pair-Setup-Encrypt-Info".data(using: .utf8),
                                           salt: "Pair-Setup-Encrypt-Salt".data(using: .utf8),
                                           count: 32)
-            let requestEncrypted: PairTagTLV8 = [
-                .encryptedData: try! ChaCha20Poly1305.encrypt(message: encode(request),
+            let requestEncrypted: PairTagTLV8Array = [
+                (.encryptedData, try! ChaCha20Poly1305.encrypt(message: encode(request),
                                                               nonce: "PS-Msg05".data(using: .utf8)!,
-                                                              key: encryptionKey)
+                                                              key: encryptionKey))
             ]
             let responseEncrypted = try! controller.keyExchangeRequest(requestEncrypted, session)
 
@@ -85,7 +85,7 @@ class PairSetupControllerTests: XCTestCase {
             let plaintext = try! ChaCha20Poly1305.decrypt(cipher: responseEncrypted[.encryptedData]!,
                                                           nonce: "PS-Msg06".data(using: .utf8)!,
                                                           key: encryptionKey)
-            let response: PairTagTLV8 = try! decode(plaintext)
+            let response: PairTagTLV8Array = try! decode(plaintext)
             let hashOut = deriveKey(algorithm: .sha512,
                                     seed: session.server.sessionKey!,
                                     info: "Pair-Setup-Accessory-Sign-Info".data(using: .utf8),

@@ -1,13 +1,20 @@
 import Foundation
 
-typealias PairTagTLV8 = [PairTag: Data]
-typealias PairTagTLV8Array = [(PairTag, Data)]
+typealias PairTagTLV8Dict = [PairTag: Data]
+typealias PairTagTLV8 = (PairTag, Data)
+typealias PairTagTLV8Array = [PairTagTLV8]
+
+extension Array where Element == PairTagTLV8 {
+    subscript(index:PairTag) -> Data? {
+        return self.first(where: {$0.0 == index})?.1
+    }
+}
 
 enum TLV8Error: Swift.Error {
     case unknownKey(UInt8)
     case decodeError
 }
-
+/*
 func decode<Key: Hashable>(_ data: Data) throws -> [Key: Data] where Key: RawRepresentable, Key.RawValue == UInt8 {
     var result = [Key: Data]()
     var index = data.startIndex
@@ -53,6 +60,41 @@ func encode<Key>(_ data: [Key: Data]) -> Data where Key: RawRepresentable, Key.R
                 index = value.endIndex
             }
         } while index < value.endIndex
+    }
+    return result
+}
+*/
+
+func decode<Key>(_ data: Data) throws -> [(Key, Data)] where Key: RawRepresentable, Key.RawValue == UInt8 {
+    var result : [(Key, Data)] = [(Key, Data)]()
+    var index = data.startIndex
+    var lastLength = 0
+    var lastKey = Key(rawValue: 0)!
+
+    while index < data.endIndex {
+        guard let type = Key(rawValue: data[index]) else {
+            throw TLV8Error.unknownKey(data[index])
+        }
+        index = data.index(after: index)
+
+        let length = Int(data[index])
+        index = data.index(after: index)
+
+        guard let endIndex = data.index(index, offsetBy: length, limitedBy: data.endIndex) else {
+            throw TLV8Error.decodeError
+        }
+        let value = data[index..<endIndex]
+
+        if lastLength == 255 && type == lastKey {
+            let lastFragment = result[result.count-1].1
+            result[result.count-1] = (type, lastFragment + Data(bytes: Array(value)))
+        } else {
+            result.append((type, Data(bytes: Array(value))))
+        }
+
+        index = endIndex
+        lastKey = type
+        lastLength = length
     }
     return result
 }

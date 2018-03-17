@@ -47,7 +47,7 @@ class PairSetupController {
         device.notifyPairingEvent(event)
     }
 
-    func startRequest(_ data: PairTagTLV8, _ session: Session) throws -> PairTagTLV8 {
+    func startRequest(_ data: PairTagTLV8Array, _ session: Session) throws -> PairTagTLV8Array {
         guard let method = data[.pairingMethod]?.first.flatMap({ PairingMethod(rawValue: $0) }) else {
             throw Error.invalidParameters
         }
@@ -60,8 +60,8 @@ class PairSetupController {
         // Error_Unavailable
         if device.isPaired {
             return [
-                .state: Data(bytes: [PairSetupStep.startResponse.rawValue]),
-                .error: Data(bytes: [PairError.unavailable.rawValue])
+                (.state, Data(bytes: [PairSetupStep.startResponse.rawValue])),
+                (.error, Data(bytes: [PairError.unavailable.rawValue]))
             ]
         }
 
@@ -76,8 +76,8 @@ class PairSetupController {
         if device.lastPairingEvent == .pairingStarted ||
             device.lastPairingEvent == .pairingVerified {
             return [
-                .state: Data(bytes: [PairSetupStep.startResponse.rawValue]),
-                .error: Data(bytes: [PairError.busy.rawValue])
+                (.state, Data(bytes: [PairSetupStep.startResponse.rawValue])),
+                (.error, Data(bytes: [PairError.busy.rawValue]))
             ]
         }
 
@@ -90,21 +90,21 @@ class PairSetupController {
         logger.debug("<-- s \(salt.hex)")
         logger.debug("<-- B \(serverPublicKey.hex)")
 
-        let result: PairTagTLV8 = [
-            .state: Data(bytes: [PairSetupStep.startResponse.rawValue]),
-            .publicKey: serverPublicKey,
-            .salt: salt
+        let result: PairTagTLV8Array = [
+            (.state, Data(bytes: [PairSetupStep.startResponse.rawValue])),
+            (.publicKey, serverPublicKey),
+            (.salt, salt)
         ]
         return result
     }
 
-    func verifyRequest(_ data: PairTagTLV8, _ session: Session) -> PairTagTLV8? {
+    func verifyRequest(_ data: PairTagTLV8Array, _ session: Session) -> PairTagTLV8Array? {
         guard let clientPublicKey = data[.publicKey], let clientKeyProof = data[.proof] else {
             logger.warning("Invalid parameters")
             notifyPairingEvent(.pairingFailed)
-            let result: PairTagTLV8 = [
-                .state: Data(bytes: [PairSetupStep.verifyResponse.rawValue]),
-                .error: Data(bytes: [PairError.unknown.rawValue])
+            let result: PairTagTLV8Array = [
+                (.state, Data(bytes: [PairSetupStep.verifyResponse.rawValue])),
+                (.error, Data(bytes: [PairError.unknown.rawValue]))
             ]
             return result
         }
@@ -117,9 +117,9 @@ class PairSetupController {
             else {
                 logger.warning("Invalid PIN")
                 notifyPairingEvent(.pairingFailed)
-                let result: PairTagTLV8 = [
-                    .state: Data(bytes: [PairSetupStep.verifyResponse.rawValue]),
-                    .error: Data(bytes: [PairError.authenticationFailed.rawValue])
+                let result: PairTagTLV8Array = [
+                    (.state, Data(bytes: [PairSetupStep.verifyResponse.rawValue])),
+                    (.error, Data(bytes: [PairError.authenticationFailed.rawValue]))
                 ]
                 return result
         }
@@ -127,14 +127,14 @@ class PairSetupController {
         logger.debug("<-- HAMK \(serverKeyProof.hex)")
 
         notifyPairingEvent(.pairingVerified)
-        let result: PairTagTLV8 = [
-            .state: Data(bytes: [PairSetupStep.verifyResponse.rawValue]),
-            .proof: serverKeyProof
+        let result: PairTagTLV8Array = [
+            (.state, Data(bytes: [PairSetupStep.verifyResponse.rawValue])),
+            (.proof, serverKeyProof)
         ]
         return result
     }
 
-    func keyExchangeRequest(_ data: PairTagTLV8, _ session: Session) throws -> PairTagTLV8 {
+    func keyExchangeRequest(_ data: PairTagTLV8Array, _ session: Session) throws -> PairTagTLV8Array {
         guard let encryptedData = data[.encryptedData] else {
             throw Error.invalidParameters
         }
@@ -153,7 +153,7 @@ class PairSetupController {
             throw Error.couldNotDecryptMessage
         }
 
-        guard let data: PairTagTLV8 = try? decode(plaintext) else {
+        guard let data: PairTagTLV8Array = try? decode(plaintext) else {
             notifyPairingEvent(.pairingFailed)
             throw Error.couldNotDecodeMessage
         }
@@ -201,10 +201,10 @@ class PairSetupController {
             throw Error.couldNotSign
         }
 
-        let resultInner: PairTagTLV8 = [
-            .identifier: device.identifier.data(using: .utf8)!,
-            .publicKey: device.publicKey,
-            .signature: signatureOut
+        let resultInner: PairTagTLV8Array = [
+            (.identifier, device.identifier.data(using: .utf8)!),
+            (.publicKey, device.publicKey),
+            (.signature, signatureOut)
         ]
 
         logger.debug("<-- identifier \(self.device.identifier)")
@@ -222,18 +222,18 @@ class PairSetupController {
 
         notifyPairingEvent(.pairingCompleted)
 
-        let resultOuter: PairTagTLV8 = [
-            .state: Data(bytes: [PairSetupStep.keyExchangeResponse.rawValue]),
-            .encryptedData: encryptedResultInner
+        let resultOuter: PairTagTLV8Array = [
+            (.state, Data(bytes: [PairSetupStep.keyExchangeResponse.rawValue])),
+            (.encryptedData, encryptedResultInner)
         ]
         return resultOuter
     }
 
-    func unknownRequest(_ data: PairTagTLV8) throws -> PairTagTLV8 {
+    func unknownRequest(_ data: PairTagTLV8Array) throws -> PairTagTLV8Array {
         notifyPairingEvent(.pairingFailed)
-        let result: PairTagTLV8 = [
-            .state: Data(bytes: [PairSetupStep.waiting.rawValue]),
-            .error: Data(bytes: [PairError.unknown.rawValue])
+        let result: PairTagTLV8Array = [
+            (.state, Data(bytes: [PairSetupStep.waiting.rawValue])),
+            (.error, Data(bytes: [PairError.unknown.rawValue]))
         ]
         return result
     }

@@ -38,12 +38,12 @@ func pairSetup(device: Device) -> Application {
         var body = Data()
         guard
             (try? request.readAllData(into: &body)) != nil,
-            let data: PairTagTLV8 = try? decode(body),
+            let data: PairTagTLV8Array = try? decode(body),
             let sequence = data[.state]?.first.flatMap({ PairSetupStep(rawValue: $0) })
         else {
             return .badRequest
         }
-        let response: PairTagTLV8?
+        let response: PairTagTLV8Array?
         do {
             switch sequence {
             // M1: iOS Device -> Accessory -- `SRP Start Request'
