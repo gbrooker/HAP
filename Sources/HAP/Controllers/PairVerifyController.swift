@@ -48,7 +48,7 @@ class PairVerifyController {
         self.device = device
     }
 
-    func startRequest(_ data: PairTagTLV8Array) throws -> (PairTagTLV8Array, Session) {
+    func startRequest(_ data: [PairTagTLV8]) throws -> ([PairTagTLV8], Session) {
         guard let clientPublicKey = data[.publicKey], clientPublicKey.count == 32 else {
             throw Error.invalidParameters
         }
@@ -60,7 +60,7 @@ class PairVerifyController {
         let material = session.publicKey + device.identifier.data(using: .utf8)! + clientPublicKey
         let signature = try Ed25519.sign(privateKey: device.privateKey, message: material)
 
-        let resultInner: PairTagTLV8Array = [
+        let resultInner: [PairTagTLV8] = [
             (.identifier, device.identifier.data(using: .utf8)!),
             (.signature, signature)
         ]
@@ -78,7 +78,7 @@ class PairVerifyController {
             throw Error.couldNotEncrypt
         }
 
-        let resultOuter: PairTagTLV8Array = [
+        let resultOuter: [PairTagTLV8] = [
             (.state, Data(bytes: [PairVerifyStep.startResponse.rawValue])),
             (.publicKey, session.publicKey),
             (.encryptedData, encryptedResultInner)
@@ -87,7 +87,7 @@ class PairVerifyController {
         return (resultOuter, session)
     }
 
-    func finishRequest(_ data: PairTagTLV8Array, _ session: Session) throws -> (PairTagTLV8Array, Pairing) {
+    func finishRequest(_ data: [PairTagTLV8], _ session: Session) throws -> ([PairTagTLV8], Pairing) {
         guard let encryptedData = data[.encryptedData] else {
             throw Error.invalidParameters
         }
@@ -104,7 +104,7 @@ class PairVerifyController {
             throw Error.couldNotDecrypt
         }
 
-        guard let data: PairTagTLV8Array = try? decode(plaintext) else {
+        guard let data: [PairTagTLV8] = try? decode(plaintext) else {
             throw Error.couldNotDecode
         }
 
@@ -128,7 +128,7 @@ class PairVerifyController {
         }
 
         logger.info("Pair verify completed")
-        let result: PairTagTLV8Array = [
+        let result: [PairTagTLV8] = [
             (.state, Data(bytes: [PairVerifyStep.finishResponse.rawValue]))
         ]
         return (result, pairing)

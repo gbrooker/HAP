@@ -64,7 +64,7 @@ class PairSetupControllerTests: XCTestCase {
                                    count: 32) +
                 clientIdentifier +
                 keys.publicKey
-            let request: PairTagTLV8Array = [
+            let request: [PairTagTLV8] = [
                 (.publicKey, keys.publicKey),
                 (.identifier, clientIdentifier),
                 (.signature, try! Ed25519.sign(privateKey: keys.privateKey, message: hashIn))
@@ -74,10 +74,10 @@ class PairSetupControllerTests: XCTestCase {
                                           info: "Pair-Setup-Encrypt-Info".data(using: .utf8),
                                           salt: "Pair-Setup-Encrypt-Salt".data(using: .utf8),
                                           count: 32)
-            let requestEncrypted: PairTagTLV8Array = [
+            let requestEncrypted: [PairTagTLV8] = [
                 (.encryptedData, try! ChaCha20Poly1305.encrypt(message: encode(request),
-                                                              nonce: "PS-Msg05".data(using: .utf8)!,
-                                                              key: encryptionKey))
+                                                               nonce: "PS-Msg05".data(using: .utf8)!,
+                                                               key: encryptionKey))
             ]
             let responseEncrypted = try! controller.keyExchangeRequest(requestEncrypted, session)
 
@@ -85,7 +85,7 @@ class PairSetupControllerTests: XCTestCase {
             let plaintext = try! ChaCha20Poly1305.decrypt(cipher: responseEncrypted[.encryptedData]!,
                                                           nonce: "PS-Msg06".data(using: .utf8)!,
                                                           key: encryptionKey)
-            let response: PairTagTLV8Array = try! decode(plaintext)
+            let response: [PairTagTLV8] = try! decode(plaintext)
             let hashOut = deriveKey(algorithm: .sha512,
                                     seed: session.server.sessionKey!,
                                     info: "Pair-Setup-Accessory-Sign-Info".data(using: .utf8),
